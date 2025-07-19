@@ -140,7 +140,16 @@ class WikiSQLDataLoader:
             本地文件路径，如果不存在返回None
         """
         if not self.local_wikisql_path:
-            return None
+            # 尝试默认路径
+            default_paths = [Path("WikiSQL"), Path("data"), Path(".")]
+            for default_path in default_paths:
+                test_file = default_path / "data" / f"{split}.jsonl" if default_path.name != "data" else default_path / f"{split}.jsonl"
+                if test_file.exists():
+                    self.local_wikisql_path = default_path
+                    break
+            
+            if not self.local_wikisql_path:
+                return None
         
         # 构建文件名
         if file_type == "questions":
@@ -154,6 +163,8 @@ class WikiSQLDataLoader:
         possible_paths = [
             self.local_wikisql_path / "data" / filename,  # WikiSQL/data/dev.jsonl
             self.local_wikisql_path / filename,           # WikiSQL/dev.jsonl
+            Path("WikiSQL") / "data" / filename,          # 默认WikiSQL/data/路径
+            Path("data") / filename,                      # data/目录
             Path(filename)                                # 当前目录下的文件
         ]
         
@@ -264,7 +275,22 @@ class WikiSQLDataLoader:
             tables_file = self._get_local_file_path(split, "tables")
             return questions_file, tables_file
         
+        # 如果没有设置local_wikisql_path，尝试默认路径
+        if not self.local_wikisql_path:
+            default_paths = [Path("WikiSQL"), Path(".")]
+            for default_path in default_paths:
+                temp_loader = WikiSQLDataLoader(local_wikisql_path=str(default_path))
+                if temp_loader._use_local_files(split):
+                    logger.info(f"找到默认路径的WikiSQL文件: {default_path}")
+                    questions_file = temp_loader._get_local_file_path(split, "questions")
+                    tables_file = temp_loader._get_local_file_path(split, "tables")
+                    if questions_file and tables_file:
+                        return questions_file, tables_file
+        
         # 如果没有本地文件或强制下载，则从网络下载
+        if not force_download:
+            raise Exception(f"本地WikiSQL数据不可用，请检查WikiSQL/data目录是否包含{split}.jsonl和{split}.tables.jsonl文件")
+        
         logger.info(f"从网络下载WikiSQL数据: {split}")
         
         # 下载问题文件
@@ -385,7 +411,7 @@ class WikiSQLDataLoader:
             logger.info("使用缓存数据")
             return self._questions_cache[cache_key], self._tables_cache
         
-        # 下载数据
+        # 获取数据文件（优先本地，必要时下载）
         questions_file, tables_file = self.download_dataset(split, force_download)
         
         # 加载数据

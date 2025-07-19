@@ -167,10 +167,18 @@ class WikiSQLDirectLLM:
 2. 表格名称使用提供的确切名称
 3. 只返回SQL查询语句，不要包含其他解释
 4. 使用标准的SQLite语法
+5. 仔细分析问题中的所有条件，如果有多个条件请使用 AND 连接
+6. 注意问题中的位置、时间、地点等多重筛选条件
+
+问题分析示例:
+- "What player played guard for toronto in 1996-97?" 
+  需要两个条件: Position='Guard' AND Team='Toronto' AND Season='1996-97'
+- "Who is the oldest player in team X?"
+  需要: Team='X' 并使用 MAX(Age) 或 ORDER BY Age DESC LIMIT 1
 
 问题: {question}
 
-请生成对应的SQL查询:
+请仔细分析问题中的所有筛选条件，生成完整的SQL查询:
 """
         return prompt
     
@@ -371,24 +379,40 @@ class WikiSQLDirectLLM:
                 if col_match:
                     sel_index = int(col_match.group(1))
             
-            # 解析WHERE条件
-            where_match = re.search(r'WHERE\s+(.+)', sql_upper)
+            # 解析WHERE条件 - 支持多条件
+            where_match = re.search(r'WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+GROUP\s+BY|\s+LIMIT|$)', sql_upper)
             if where_match:
                 where_part = where_match.group(1).strip()
                 
-                # 简单的条件解析
-                condition_patterns = [
-                    (r'COL(\d+)\s*=\s*[\'"]([^\'"]+)[\'"]', 0),  # 等于
-                    (r'COL(\d+)\s*>\s*([^\s]+)', 1),           # 大于
-                    (r'COL(\d+)\s*<\s*([^\s]+)', 2),           # 小于
-                ]
+                # 分割AND条件
+                and_conditions = re.split(r'\s+AND\s+', where_part)
                 
-                for pattern, op_index in condition_patterns:
-                    matches = re.findall(pattern, where_part)
-                    for match in matches:
-                        col_idx = int(match[0])
-                        value = match[1].strip()
-                        conditions.append([col_idx, op_index, value])
+                for condition in and_conditions:
+                    condition = condition.strip()
+                    
+                    # 条件解析模式
+                    condition_patterns = [
+                        (r'COL(\d+)\s*=\s*[\'"]([^\'"]+)[\'"]', 0),  # 等于字符串
+                        (r'COL(\d+)\s*=\s*([^\s\'";]+)', 0),        # 等于数字
+                        (r'COL(\d+)\s*>\s*([^\s\'";]+)', 1),        # 大于
+                        (r'COL(\d+)\s*<\s*([^\s\'";]+)', 2),        # 小于
+                        (r'COL(\d+)\s+LIKE\s+[\'"]([^\'"]+)[\'"]', 0),  # LIKE (当作等于处理)
+                    ]
+                    
+                    matched = False
+                    for pattern, op_index in condition_patterns:
+                        match = re.search(pattern, condition)
+                        if match:
+                            col_idx = int(match.group(1))
+                            value = match.group(2).strip()
+                            # 移除引号
+                            value = value.strip('\'"')
+                            conditions.append([col_idx, op_index, value])
+                            matched = True
+                            break
+                    
+                    if not matched:
+                        logger.warning(f"无法解析条件: {condition}")
             
             result = {
                 'sel': sel_index,

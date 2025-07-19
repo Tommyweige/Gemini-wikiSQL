@@ -1,17 +1,20 @@
-# WikiSQL 直接LLM方案依赖包
 
-# 核心LLM接口
 langchain-openai>=0.1.0
 
-# 数据处理
 pandas>=1.5.0
 sqlalchemy>=1.4.0
 
-# 网络请求和进度条
+
 requests>=2.28.0
 tqdm>=4.64.0
 
-# WikiSQL原始项目依赖（来自 WikiSQL/requirements.txt）
+
 records>=0.5.2
 babel>=2.3.4
 tabulate>=0.8.0
+
+
+openai>=1.0.0
+beautifulsoup4>=4.9.0
+pyyaml>=6.0
+ddgs>=3.0.0
