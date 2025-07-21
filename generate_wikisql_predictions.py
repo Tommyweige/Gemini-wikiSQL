@@ -66,18 +66,18 @@ def main():
     
     # Step 5: Select query mode
     print(f"\n📋 Step 5: Query Mode Selection")
-    print("1. Standard Query (Fast, 79% accuracy)")
-    print("2. Heavy Query (Deep analysis, 4 agents, 85%+ accuracy)")
+    print("1. Standard Query (标准查询, 快速, ~86% 准确率)")
+    print("2. Heavy Query (4个并行智能体深度分析, ~84% 准确率)")
     
-    query_mode = input("Please select query mode (1/2, default 1): ").strip()
+    query_mode = input("请选择查询模式 (1/2, 默认 1): ").strip()
     use_heavy = query_mode == "2"
     
     if use_heavy:
-        print("✅ Selected: Heavy Multi-Agent Query")
-        print("   - Will use 4 specialized agents for deep analysis")
-        print("   - SQL Expert, Data Analyst, Performance Optimizer, Result Validator")
+        print("✅ 已选择: Heavy多智能体查询")
+        print("   - 使用4个专门智能体进行深度分析")
+        print("   - SQL专家、数据分析师、性能优化师、结果验证师")
     else:
-        print("✅ Selected: Standard Query")
+        print("✅ 已选择: 标准查询")
     
     # Detect local WikiSQL data
     print(f"\n🔍 Detecting local WikiSQL data...")
@@ -100,21 +100,18 @@ def main():
     
     try:
         # Initialize WikiSQL query assistant
-        print(f"\n🔧 Initializing WikiSQL query assistant...")
+        print(f"\n🔧 初始化WikiSQL查询助手...")
         
         if use_heavy:
-            print("🧠 Enabling Heavy multi-agent mode...")
-            from wikisql_heavy_simple import WikiSQLDirectLLMSimpleHeavy
-            assistant = WikiSQLDirectLLMSimpleHeavy(
-                api_key=api_key, 
-                enable_heavy=True
-            )
-            print("✅ Heavy mode enabled - 4 specialized agents ready")
+            print("🧠 启用Heavy多智能体模式...")
+            from wikisql_heavy_integration import WikiSQLDirectLLMHeavy
+            assistant = WikiSQLDirectLLMHeavy(api_key)
+            print("✅ Heavy模式已启用 - 4个专门智能体准备就绪")
         else:
-            print("⚡ Enabling standard query mode...")
+            print("⚡ 启用标准查询模式...")
             from wikisql_llm_direct import WikiSQLDirectLLM
             assistant = WikiSQLDirectLLM(api_key)
-            print("✅ Standard mode enabled")
+            print("✅ 标准模式已启用")
         
         # Set local data path
         assistant.data_loader.local_wikisql_path = Path(wikisql_path)
@@ -135,15 +132,15 @@ def main():
             
             assistant.llm = new_llm
             
-            # If Heavy mode, reinitialize entire Heavy Orchestrator with new model
+            # If Heavy mode, reinitialize Heavy Orchestrator with new model
             if use_heavy and hasattr(assistant, 'heavy_orchestrator'):
-                print(f"🔄 Reinitializing Heavy agents with {selected_model} model...")
+                print(f"🔄 重新初始化Heavy智能体使用 {selected_model} 模型...")
                 try:
                     from wikisql_heavy_simple import SimpleHeavyOrchestrator
                     assistant.heavy_orchestrator = SimpleHeavyOrchestrator(api_key, selected_model)
-                    print(f"✅ Heavy agents switched to {selected_model} model")
+                    print(f"✅ Heavy智能体已切换到 {selected_model} 模型")
                 except Exception as e:
-                    print(f"⚠️ Heavy agent model switch failed: {e}")
+                    print(f"⚠️ Heavy智能体模型切换失败: {e}")
                     assistant.heavy_enabled = False
         
         # 生成输出文件名
@@ -163,7 +160,7 @@ def main():
         
         # 生成预测
         print(f"\n🎯 开始生成预测...")
-        print(f"模式: {'Heavy多智能体分析' if use_heavy else '一般查询'}")
+        print(f"模式: {'Heavy多智能体分析' if use_heavy else '标准查询'}")
         print(f"输出文件: {output_file}")
         
         predictions = []
@@ -175,11 +172,7 @@ def main():
             try:
                 if use_heavy:
                     # Heavy mode: Use multi-agent analysis
-                    print("🧠 Starting Heavy multi-agent analysis...")
-                    print("   📋 Following Make It Heavy workflow:")
-                    print("   1️⃣ Question Generation Agent - Generate 4 specialized questions")
-                    print("   2️⃣ 4 specialized agents parallel analysis")
-                    print("   3️⃣ Synthesis Agent - Comprehensive final answer")
+                    print("🧠 开始Heavy多智能体分析...")
                     
                     heavy_result = assistant.generate_sql_with_heavy_analysis(
                         question.question, 
@@ -189,79 +182,31 @@ def main():
                     if heavy_result.get("heavy_analysis"):
                         analysis = heavy_result["heavy_analysis"]
                         confidence = analysis.get("overall_confidence", 0.0)
-                        print(f"\n   ✅ Make It Heavy analysis completed, confidence: {confidence:.3f}")
+                        print(f"   ✅ Heavy分析完成，置信度: {confidence:.3f}")
                         
-                        # Display specialized questions (if available)
-                        specialized_questions = analysis.get("specialized_questions", [])
-                        if specialized_questions:
-                            print(f"\n   📝 Generated 4 specialized questions:")
-                            question_types = ["🔍 Research", "📊 Analysis", "🔄 Alternatives", "✅ Verification"]
-                            for idx, (q_type, spec_q) in enumerate(zip(question_types, specialized_questions)):
-                                print(f"     {q_type}: {spec_q[:80]}...")
+                        # 使用Heavy分析改进的SQL，如果没有改进则使用基础SQL
+                        improved_sql = analysis.get("improved_sql", "")
+                        basic_sql = heavy_result.get("basic_sql", "")
+                        final_sql = improved_sql if improved_sql and improved_sql != basic_sql else basic_sql
                         
-                        # Display detailed analysis results from each agent
-                        agent_analyses = analysis.get("agent_analyses", [])
-                        if agent_analyses:
-                            print(f"\n   🤖 4 specialized SQL agents analysis results:")
-                            agent_icons = ["🔍", "📊", "🔄", "✅"]
-                            agent_names = ["SQL Research Agent", "SQL Logic Agent", "SQL Alternatives Agent", "SQL Verification Agent"]
+                        if final_sql:
+                            if improved_sql and improved_sql != basic_sql:
+                                print(f"   🔧 使用Heavy改进的SQL: {improved_sql[:50]}...")
+                            else:
+                                print(f"   📝 使用基础SQL: {basic_sql[:50]}...")
                             
-                            for idx, agent_result in enumerate(agent_analyses):
-                                if not agent_result.get("error"):
-                                    icon = agent_icons[idx] if idx < len(agent_icons) else "🤖"
-                                    name = agent_names[idx] if idx < len(agent_names) else "Agent"
-                                    agent_confidence = agent_result.get("confidence", 0.0)
-                                    
-                                    print(f"\n     {icon} {name}:")
-                                    print(f"       Confidence: {agent_confidence:.3f}")
-                                    
-                                    # Display agent's full answer content
-                                    answer = agent_result.get("answer", "")
-                                    if answer:
-                                        print(f"       === FULL ANALYSIS ===")
-                                        print(f"       {answer}")
-                                        print(f"       === END ANALYSIS ===")
-                                    
-                                    # Display specialized question
-                                    spec_question = agent_result.get("specialized_question", "")
-                                    if spec_question:
-                                        print(f"       Specialized question: {spec_question}")
-                                    
-                                else:
-                                    icon = agent_icons[idx] if idx < len(agent_icons) else "🤖"
-                                    name = agent_names[idx] if idx < len(agent_names) else "Agent"
-                                    error_msg = agent_result.get("error", "Unknown error")
-                                    print(f"\n     {icon} {name}: ❌ Analysis failed ({error_msg})")
-                        
-                        # Display synthesis analysis results
-                        synthesis = analysis.get("synthesis", {})
-                        if synthesis and synthesis.get("final_answer"):
-                            print(f"\n   🎯 Synthesis Agent comprehensive analysis:")
-                            final_answer = synthesis["final_answer"]
-                            print(f"     === FULL SYNTHESIS ANALYSIS ===")
-                            print(f"     {final_answer}")
-                            print(f"     === END SYNTHESIS ANALYSIS ===")
-                            print(f"     [Total {len(final_answer)} characters]")
-                        
-                        # Display Make It Heavy workflow confirmation
-                        if analysis.get("make_it_heavy_flow"):
-                            print(f"\n   ✨ Make It Heavy workflow completed:")
-                            print(f"     • Question Generation ✅")
-                            print(f"     • 4 specialized agents parallel analysis ✅") 
-                            print(f"     • Synthesis comprehensive analysis ✅")
-                        
-                        # Parse SQL to WikiSQL format
-                        sql = heavy_result.get("basic_sql", "")
-                        if sql:
-                            wikisql_query = assistant._parse_sql_to_wikisql_format(sql, question)
+                            wikisql_query = assistant._parse_sql_to_wikisql_format(final_sql, question)
                             if wikisql_query:
                                 prediction = {
                                     "query": wikisql_query,
                                     "heavy_confidence": confidence,
-                                    "heavy_agents": analysis.get("synthesis", {}).get("valid_analyses", 0)
+                                    "heavy_agents": analysis.get("synthesis", {}).get("valid_analyses", 0),
+                                    "heavy_improved": improved_sql != basic_sql if improved_sql else False,
+                                    "original_sql": basic_sql,
+                                    "final_sql": final_sql
                                 }
                             else:
-                                prediction = {"error": f"SQL parsing failed: {sql}"}
+                                prediction = {"error": f"SQL parsing failed: {final_sql}"}
                         else:
                             prediction = {"error": "SQL generation failed"}
                     else:
@@ -269,7 +214,7 @@ def main():
                 else:
                     # Standard mode: Standard prediction generation
                     prediction = assistant.generate_wikisql_prediction(i)
-                    print(f"   ✅ Standard query completed")
+                    print(f"   ✅ 标准查询完成")
                 
                 predictions.append(prediction)
                 

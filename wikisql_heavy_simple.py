@@ -46,58 +46,61 @@ class QuestionGenerationAgent:
             return []
         
         prompt = f"""
-You are a question decomposition expert. Please break down the user's question into 4 specialized questions from different angles, each designed to help better answer the user's core needs.
+You are a question generation expert. Create 4 natural language questions based on the original question, using a 1+3 structure: 1 original question + 3 transformed questions from different perspectives.
 
-User Question: {user_question}
+Original Question: {user_question}
 Table Information: {json.dumps(table_info, ensure_ascii=False)}
-Generated SQL: {generated_sql}
 
-Please generate 4 specialized SQL analysis questions, each focused on different aspects of the SQL query:
+Requirements:
+1. First question: Keep the EXACT original question unchanged
+2. Questions 2-4: Transform the original question from different angles while maintaining the same core intent
+3. All questions must be natural language questions (NO SQL syntax allowed)
+4. All questions must be in English
+5. Focus on different aspects: specificity, context, verification
 
-1. SQL Research Question: Deep analysis of what the SQL query retrieves and how it addresses the user question
-2. SQL Logic Question: Evaluate the query logic and reasoning behind the SQL approach  
-3. SQL Alternatives Question: Explore alternative SQL queries that might better answer the user question
-4. SQL Verification Question: Verify query results and assess if they correctly answer the user question
-
-Important: Each question must focus on SQL query analysis for answering "{user_question}"
+Example transformation patterns:
+- Original: "What school did player number 21 play for?"
+- Angle 1: "Which educational institution was attended by the athlete wearing jersey number 21?"
+- Angle 2: "What is the academic background of the player identified as number 21?"
+- Angle 3: "Can you identify the college or university associated with player 21?"
 
 Please output in the following format:
-RESEARCH: [SQL analysis question about what the query retrieves and how it addresses the user question]
-ANALYSIS: [SQL logic question about the reasoning and appropriateness of the query approach]
-ALTERNATIVES: [SQL alternatives question about better query options and trade-offs]
-VERIFICATION: [SQL verification question about query results and correctness]
+ORIGINAL: {user_question}
+SPECIFIC: [More specific version focusing on details and context]
+ALTERNATIVE: [Alternative phrasing with different terminology]
+VERIFICATION: [Verification-focused version asking for confirmation]
 """
         
         try:
             response = self.client.invoke(prompt)
-            return self._parse_questions(response.content)
+            return self._parse_questions(response.content, user_question)
         except Exception as e:
             logger.error(f"生成专门问题失败: {e}")
             return []
     
-    def _parse_questions(self, response: str) -> List[str]:
+    def _parse_questions(self, response: str, user_question: str) -> List[str]:
         """解析生成的4个问题"""
         questions = []
         lines = response.split('\n')
         
         for line in lines:
             line = line.strip()
-            if line.startswith('RESEARCH:'):
-                questions.append(line.replace('RESEARCH:', '').strip())
-            elif line.startswith('ANALYSIS:'):
-                questions.append(line.replace('ANALYSIS:', '').strip())
-            elif line.startswith('ALTERNATIVES:'):
-                questions.append(line.replace('ALTERNATIVES:', '').strip())
+            if line.startswith('ORIGINAL:'):
+                questions.append(line.replace('ORIGINAL:', '').strip())
+            elif line.startswith('SPECIFIC:'):
+                questions.append(line.replace('SPECIFIC:', '').strip())
+            elif line.startswith('ALTERNATIVE:'):
+                questions.append(line.replace('ALTERNATIVE:', '').strip())
             elif line.startswith('VERIFICATION:'):
                 questions.append(line.replace('VERIFICATION:', '').strip())
         
-        # 如果解析失败，返回默认问题 - 圍繞用戶核心需求
+        # 如果解析失败，返回默认的1+3结构英文问题
         if len(questions) != 4:
             questions = [
-                f"如何深入理解用戶問題 '{user_question}' 的真正需求和背景？",
-                f"當前的解決方案是否正確回答了用戶問題 '{user_question}'？", 
-                f"是否有更好的方法來回答用戶問題 '{user_question}'？",
-                f"如何驗證我們對用戶問題 '{user_question}' 的答案是正確的？"
+                user_question,  # 保持原始问题
+                f"Which specific details can help us better understand the question: '{user_question}'?",
+                f"How can we rephrase the question '{user_question}' using different terminology?", 
+                f"What evidence would confirm that we correctly answered '{user_question}'?"
             ]
         
         return questions
@@ -235,6 +238,12 @@ Special attention to multi-condition queries:
 - Check if all conditions from the user question are captured in the SQL
 - Look for missing AND clauses that might be needed
 
+IMPORTANT: Only suggest SQL improvements if there are CLEAR missing conditions or obvious errors.
+- Don't suggest LIKE instead of = unless absolutely necessary
+- Don't add LOWER(), UPPER(), or other functions unless required
+- Keep suggestions simple and compatible with WikiSQL format
+- Focus on missing WHERE conditions, not style improvements
+
 Focus on helping answer "{user_question}" accurately and completely.
 """
     
@@ -361,9 +370,13 @@ class SimpleHeavyOrchestrator:
         print("\n🎯 第三步：Synthesis Agent 综合分析...")
         final_synthesis = self._synthesis_analysis(question, agent_results, generated_sql)
         
+        # 檢查是否需要改進SQL
+        improved_sql = self._extract_improved_sql(final_synthesis, generated_sql)
+        
         return {
             "question": question,
             "generated_sql": generated_sql,
+            "improved_sql": improved_sql,  # Heavy分析改進的SQL
             "specialized_questions": specialized_questions,
             "agent_analyses": agent_results,
             "synthesis": final_synthesis,
@@ -391,12 +404,12 @@ class SimpleHeavyOrchestrator:
         )
         
         if not specialized_questions:
-            # 如果生成失败，使用默认问题 - 专注SQL查询分析，特别关注多条件
+            # 如果生成失败，使用默认的1+3结构英文问题
             specialized_questions = [
-                f"Analyze the SQL query `{generated_sql}` - does it capture all conditions from '{question}' including position, team, time, etc.?",
-                f"Evaluate multi-condition logic: Does `{generated_sql}` have all necessary WHERE clauses for '{question}'? Are any conditions missing?",
-                f"What alternative SQL approaches could better capture all conditions in '{question}' and ensure complete accuracy?",
-                f"Execute and verify: What results would `{generated_sql}` produce and do they correctly answer all aspects of '{question}'?"
+                question,  # 保持原始问题
+                f"Which specific details and conditions are most important when answering: '{question}'?",
+                f"How can we rephrase this inquiry using different terminology: '{question}'?",
+                f"What evidence would confirm we have correctly answered: '{question}'?"
             ]
         
         return specialized_questions
@@ -530,14 +543,28 @@ Please synthesize their findings by:
 1. **SQL Query Evaluation**: Compare how each agent analyzed the SQL query `{generated_sql}`
 2. **Results Analysis**: Synthesize what each agent found about the query results and their correctness
 3. **Consensus Assessment**: Where do the agents agree/disagree about the SQL approach?
-4. **Final Answer**: Based on all agent analyses, what is the best answer to "{original_question}"?
-5. **Confidence Score**: Overall confidence in the final answer (0-1)
+4. **Improved SQL**: If agents suggest improvements, provide the corrected SQL query
+5. **Final Answer**: Based on all agent analyses, what is the best answer to "{original_question}"?
+6. **Confidence Score**: Overall confidence in the final answer (0-1)
 
 Structure your response as:
 - **Query Assessment**: [Combined evaluation of the SQL query]
 - **Agent Consensus**: [Where agents agree and disagree]
+- **Improved SQL**: [If needed, provide corrected SQL query in format: ```sql\nSELECT ... \n```]
 - **Final Answer**: [Definitive answer to the user's question]
 - **Confidence**: [Number between 0-1]
+
+IMPORTANT: If the agents identified missing conditions or SQL errors, provide the corrected SQL query in a code block like this:
+```sql
+SELECT col0 FROM table_name WHERE col1='condition1' AND col2='condition2';
+```
+
+CRITICAL GUIDELINES for SQL improvements:
+1. Keep SQL simple and compatible with WikiSQL format
+2. Use exact matches (=) instead of LIKE unless absolutely necessary
+3. Don't add unnecessary functions like LOWER(), UPPER(), etc.
+4. Stick to basic SELECT, FROM, WHERE, AND structure
+5. Only suggest improvements if there are clear missing conditions or obvious errors
 
 Focus on providing the most accurate answer to "{original_question}" based on all agent insights.
 """
@@ -546,16 +573,8 @@ Focus on providing the most accurate answer to "{original_question}" based on al
             response = self.synthesis_agent.client.invoke(synthesis_prompt)
             synthesis_content = response.content
             
-            # 简单的置信度提取（可以改进）
-            confidence = 0.8  # 默认置信度
-            if "置信度" in synthesis_content:
-                import re
-                conf_match = re.search(r'置信度[：:]\s*([0-9.]+)', synthesis_content)
-                if conf_match:
-                    try:
-                        confidence = float(conf_match.group(1))
-                    except:
-                        pass
+            # 从synthesis内容中提取置信度
+            confidence = self._extract_confidence_from_synthesis(synthesis_content, successful_results)
             
             return {
                 "synthesis_content": synthesis_content,
@@ -576,6 +595,171 @@ Focus on providing the most accurate answer to "{original_question}" based on al
                 "valid_analyses": len(successful_results),
                 "final_answer": f"Synthesis Agent失败，但{len(successful_results)}个智能体成功完成分析"
             }
+    
+    def _extract_confidence_from_synthesis(self, synthesis_content: str, successful_results: list) -> float:
+        """从synthesis内容和智能体结果中提取真实的置信度"""
+        import re
+        
+        # 1. 尝试从synthesis内容中提取明确的置信度
+        confidence_patterns = [
+            r'\*\*Confidence\*\*[：:]\s*([0-9.]+)',
+            r'置信度[：:]\s*([0-9.]+)',
+            r'confidence[：:]\s*([0-9.]+)',
+            r'Confidence Score[：:]\s*([0-9.]+)',
+            r'Overall confidence[：:]\s*([0-9.]+)',
+            r'([0-9.]+)\s*(?:out of|/)\s*1',
+            r'([0-9.]+)\s*(?:%|percent)',
+        ]
+        
+        for pattern in confidence_patterns:
+            matches = re.findall(pattern, synthesis_content, re.IGNORECASE)
+            if matches:
+                try:
+                    conf_value = float(matches[0])
+                    # 如果是百分比，转换为0-1范围
+                    if conf_value > 1:
+                        conf_value = conf_value / 100
+                    if 0 <= conf_value <= 1:
+                        return conf_value
+                except ValueError:
+                    continue
+        
+        # 2. 基于智能体结果计算置信度
+        if successful_results:
+            agent_confidences = [r.get("confidence", 0.0) for r in successful_results]
+            avg_agent_confidence = sum(agent_confidences) / len(agent_confidences)
+            
+            # 3. 基于synthesis内容质量调整置信度
+            quality_indicators = [
+                "correct", "accurate", "appropriate", "valid", "suitable",
+                "recommend", "improved", "better", "optimal", "effective"
+            ]
+            
+            negative_indicators = [
+                "error", "incorrect", "wrong", "missing", "failed",
+                "unclear", "ambiguous", "problematic", "insufficient"
+            ]
+            
+            content_lower = synthesis_content.lower()
+            positive_count = sum(1 for indicator in quality_indicators if indicator in content_lower)
+            negative_count = sum(1 for indicator in negative_indicators if indicator in content_lower)
+            
+            # 质量调整因子
+            quality_factor = (positive_count - negative_count * 0.5) / 10
+            quality_factor = max(-0.3, min(0.3, quality_factor))  # 限制在-0.3到0.3之间
+            
+            # 成功智能体比例调整
+            success_ratio = len(successful_results) / 4  # 总共4个智能体
+            
+            # 综合计算置信度
+            final_confidence = avg_agent_confidence * success_ratio + quality_factor
+            final_confidence = max(0.0, min(1.0, final_confidence))  # 确保在0-1范围内
+            
+            return final_confidence
+        
+        # 4. 默认置信度（如果所有方法都失败）
+        return 0.5
+    
+    def _extract_improved_sql(self, synthesis_result: dict, original_sql: str) -> str:
+        """從Synthesis結果中提取改進的SQL查詢"""
+        if synthesis_result.get("error"):
+            return original_sql
+        
+        final_answer = synthesis_result.get("final_answer", "")
+        
+        # 尋找SQL查詢建議
+        import re
+        
+        # 更全面的SQL代碼塊模式
+        sql_patterns = [
+            # 標準代碼塊
+            r'```sql\s*\n(.*?)\n```',
+            r'```\s*\n(SELECT.*?;)\s*\n```',
+            # Improved SQL 部分
+            r'\*\*Improved SQL\*\*.*?```sql\s*\n(.*?)\n```',
+            r'\*\*Improved SQL\*\*.*?[:：]\s*(SELECT.*?;)',
+            # 一般SQL建議
+            r'建議.*?SQL.*?[:：]\s*(SELECT.*?;)',
+            r'改進.*?SQL.*?[:：]\s*(SELECT.*?;)',
+            r'正確.*?SQL.*?[:：]\s*(SELECT.*?;)',
+            r'corrected.*?SQL.*?[:：]\s*(SELECT.*?;)',
+            r'improved.*?SQL.*?[:：]\s*(SELECT.*?;)',
+            # 直接的SELECT語句
+            r'(SELECT\s+col\d+.*?WHERE.*?;)',
+            r'(SELECT\s+.*?FROM\s+.*?WHERE.*?AND.*?;)',
+        ]
+        
+        for pattern in sql_patterns:
+            matches = re.findall(pattern, final_answer, re.DOTALL | re.IGNORECASE)
+            if matches:
+                improved_sql = matches[0].strip()
+                # 清理SQL
+                improved_sql = improved_sql.replace('\n', ' ').replace('\r', ' ')
+                improved_sql = ' '.join(improved_sql.split())  # 規範化空格
+                
+                # 確保SQL以分號結尾
+                if not improved_sql.endswith(';'):
+                    improved_sql += ';'
+                
+                # 檢查是否真的是改進的SQL - 更嚴格的驗證
+                if (improved_sql and 
+                    improved_sql != original_sql and 
+                    'SELECT' in improved_sql.upper() and
+                    len(improved_sql) > 10 and
+                    self._is_valid_improvement(improved_sql, original_sql)):
+                    logger.info(f"Heavy分析提取到改進SQL: {improved_sql}")
+                    return improved_sql
+        
+        # 如果沒有找到改進的SQL，返回原始SQL
+        logger.info(f"未找到改進SQL，使用原始SQL: {original_sql}")
+        return original_sql
+    
+    def _is_valid_improvement(self, improved_sql: str, original_sql: str) -> bool:
+        """驗證改進的SQL是否真的比原始SQL更好"""
+        import re
+        
+        # 提取WHERE條件數量
+        def count_conditions(sql):
+            where_match = re.search(r'WHERE\s+(.+?)(?:\s+ORDER|\s+GROUP|\s+LIMIT|;|$)', sql, re.IGNORECASE)
+            if not where_match:
+                return 0
+            where_clause = where_match.group(1)
+            return len(re.findall(r'\bAND\b', where_clause, re.IGNORECASE)) + 1
+        
+        original_conditions = count_conditions(original_sql)
+        improved_conditions = count_conditions(improved_sql)
+        
+        # 檢查是否添加了有意義的條件
+        if improved_conditions > original_conditions:
+            logger.info(f"SQL改進：添加了 {improved_conditions - original_conditions} 個條件")
+            return True
+        
+        # 檢查是否修復了明顯的錯誤（如錯誤的列選擇）
+        original_select = re.search(r'SELECT\s+(.*?)\s+FROM', original_sql, re.IGNORECASE)
+        improved_select = re.search(r'SELECT\s+(.*?)\s+FROM', improved_sql, re.IGNORECASE)
+        
+        if original_select and improved_select:
+            orig_cols = original_select.group(1).strip()
+            impr_cols = improved_select.group(1).strip()
+            
+            # 如果只是改變了選擇的列，需要謹慎
+            if orig_cols != impr_cols:
+                logger.warning(f"SQL改進改變了選擇列：{orig_cols} -> {impr_cols}")
+                # 只有在原始SQL明顯錯誤時才接受列的改變
+                return False
+        
+        # 檢查是否添加了不必要的複雜性
+        complexity_indicators = ['LIKE', 'LOWER', 'UPPER', 'CROSS APPLY', 'STRING_SPLIT', '%']
+        improved_complexity = sum(1 for indicator in complexity_indicators if indicator in improved_sql.upper())
+        original_complexity = sum(1 for indicator in complexity_indicators if indicator in original_sql.upper())
+        
+        if improved_complexity > original_complexity:
+            logger.warning(f"SQL改進增加了複雜性，可能不適合WikiSQL格式")
+            return False
+        
+        # 如果沒有明顯改進，保持原始SQL
+        logger.info("SQL改進沒有明顯優勢，保持原始SQL")
+        return False
     
     def _synthesize_results_old(self, agent_results: List[dict]) -> dict:
         """综合多个智能体的分析结果"""
