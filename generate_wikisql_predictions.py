@@ -104,9 +104,9 @@ def main():
         
         if use_heavy:
             print("🧠 启用Heavy多智能体模式...")
-            from wikisql_heavy_integration import WikiSQLDirectLLMHeavy
-            assistant = WikiSQLDirectLLMHeavy(api_key)
-            print("✅ Heavy模式已启用 - 4个专门智能体准备就绪")
+            from wikisql_heavy_simple import WikiSQLDirectLLMSimpleHeavy
+            assistant = WikiSQLDirectLLMSimpleHeavy(api_key)
+            print("✅ Heavy模式已启用 - 4个专门智能体并行分析")
         else:
             print("⚡ 启用标准查询模式...")
             from wikisql_llm_direct import WikiSQLDirectLLM

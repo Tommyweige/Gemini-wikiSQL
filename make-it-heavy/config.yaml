@@ -1,12 +1,10 @@
-# OpenRouter API settings
+# API settings - Use same endpoint as WikiSQL
 openrouter:
   api_key: "YOUR KEY"
-  base_url: "https://openrouter.ai/api/v1"
+  base_url: "https://okjtgbhgemzb.eu-central-1.clawcloudrun.com/v1"
   
-  # IMPORTANT: When selecting a model, ensure it has a high context window (200k+ tokens recommended)
-  # The orchestrator can generate large amounts of results from multiple agents that need to be
-  # processed together during synthesis. Low context window models may fail or truncate results.
-  model: "moonshotai/kimi-k2"
+  # Use same model as WikiSQL
+  model: "gemini-2.5-flash"
 
 # System prompt for the agent
 system_prompt: |

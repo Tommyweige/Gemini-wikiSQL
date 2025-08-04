@@ -162,23 +162,26 @@ class WikiSQLDirectLLM:
 表格信息:
 {table_context}
 
-重要说明:
+重要规则:
 1. 列名必须使用 col0, col1, col2... 格式
 2. 表格名称使用提供的确切名称
 3. 只返回SQL查询语句，不要包含其他解释
 4. 使用标准的SQLite语法
-5. 仔细分析问题中的所有条件，如果有多个条件请使用 AND 连接
-6. 注意问题中的位置、时间、地点等多重筛选条件
+5. 仔细分析问题，只在明确需要时使用聚合函数
+6. 只添加问题中明确提到的WHERE条件
 
-问题分析示例:
-- "What player played guard for toronto in 1996-97?" 
-  需要两个条件: Position='Guard' AND Team='Toronto' AND Season='1996-97'
-- "Who is the oldest player in team X?"
-  需要: Team='X' 并使用 MAX(Age) 或 ORDER BY Age DESC LIMIT 1
+聚合函数指南:
+- "how many" / "count" → COUNT()
+- "minimum" / "smallest" → MIN()  
+- "maximum" / "largest" → MAX()
+- "sum" / "total" (求和) → SUM()
+- "average" → AVG()
+
+注意: "total amount" 可能指数量(COUNT)或最大值(MAX)，需要根据上下文判断
 
 问题: {question}
 
-请仔细分析问题中的所有筛选条件，生成完整的SQL查询:
+请仔细分析问题类型和所有条件，生成完整准确的SQL查询:
 """
         return prompt
     
