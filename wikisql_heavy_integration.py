@@ -41,13 +41,12 @@ class WikiSQLHeavyAgent:
         """
         self.agent_id = agent_id
         self.config = config
-        # 使用与WikiSQL相同的LLM配置
-        from langchain_openai import ChatOpenAI
-        base_url = "https://okjtgbhgemzb.eu-central-1.clawcloudrun.com"
-        self.agent = ChatOpenAI(
-            model="gemma-3-27b-it",
+        # 使用Google AI Studio配置
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        self.agent = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-exp",
             temperature=0.1,
-            base_url=f"{base_url}/v1",
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
             request_timeout=60,
             verbose=False
         )
@@ -213,9 +212,9 @@ class WikiSQLHeavyOrchestrator:
             # 返回默认配置 - 使用与WikiSQL相同的端点
             return {
                 'openrouter': {
-                    'api_key': os.getenv('OPENAI_API_KEY', ''),
+                    'api_key': os.getenv('GOOGLE_API_KEY', ''),
                     'model': 'gemini-2.5-flash',
-                    'base_url': 'https://okjtgbhgemzb.eu-central-1.clawcloudrun.com/v1'
+                    'base_url': 'https://aistudio.google.com/v1'
                 }
             }
     
@@ -996,7 +995,7 @@ def main():
     print("=" * 60)
     
     # 获取API密钥
-    api_key = input("请输入你的API密钥: ").strip()
+    api_key = input("请输入你的Google AI Studio API密钥: ").strip()
     if not api_key:
         print("❌ 需要提供API密钥")
         return

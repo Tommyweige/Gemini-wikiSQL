@@ -122,7 +122,7 @@ graph TB
     
     subgraph "LLM服务层"
         J[ChatOpenAI<br/>LangChain接口]
-        K[自定义API端点<br/>okjtgbhgemzb.eu-central-1.clawcloudrun.com]
+        K[AI Studio API端点<br/>aistudio.google.com]
     end
     
     A --> B

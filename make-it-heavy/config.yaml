@@ -1,7 +1,7 @@
 # API settings - Use same endpoint as WikiSQL
 openrouter:
   api_key: "YOUR KEY"
-  base_url: "https://okjtgbhgemzb.eu-central-1.clawcloudrun.com/v1"
+  base_url: "https://aistudio.google.com/v1"
   
   # Use same model as WikiSQL
   model: "gemini-2.5-flash"

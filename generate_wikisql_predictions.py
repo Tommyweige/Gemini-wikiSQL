@@ -19,7 +19,7 @@ def main():
     
     # Step 1: Get API key
     print("\n📋 Step 1: API Key Configuration")
-    api_key = input("Please enter your API key: ").strip()
+    api_key = input("Please enter your Google AI Studio API key: ").strip()
     if not api_key:
         print("❌ API key is required")
         return
@@ -27,8 +27,8 @@ def main():
     
     # Step 2: Select model
     print("\n📋 Step 2: Model Selection")
-    print("1. Gemini 2.5 Flash (Recommended, fast)")
-    print("2. Gemma 3 27B IT (High precision)")
+    print("1. Gemini 2.5 Flash")
+    print("2. Gemma 3 27B IT")
     
     model_choice = input("Please select model (1/2, default 1): ").strip()
     if model_choice == "2":
@@ -119,13 +119,12 @@ def main():
         # If different model selected, reconfigure
         if selected_model != "gemini-2.5-flash":
             print(f"🔄 Switching to {selected_model} model...")
-            from langchain_openai import ChatOpenAI
+            from langchain_google_genai import ChatGoogleGenerativeAI
             
-            base_url = "https://okjtgbhgemzb.eu-central-1.clawcloudrun.com"
-            new_llm = ChatOpenAI(
+            new_llm = ChatGoogleGenerativeAI(
                 model=selected_model,
                 temperature=0,
-                base_url=f"{base_url}/v1",
+                google_api_key=os.getenv("GOOGLE_API_KEY"),
                 request_timeout=30,
                 verbose=True
             )

@@ -10,7 +10,6 @@ import sqlite3
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
-from langchain_openai import ChatOpenAI
 
 from wikisql_data_loader import WikiSQLDataLoader, WikiSQLQuestion, WikiSQLTable
 from wikisql_database_manager import WikiSQLDatabaseManager
@@ -33,24 +32,22 @@ class WikiSQLDirectLLM:
         """
         # 设置API密钥
         if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key
-        elif not os.getenv("OPENAI_API_KEY"):
-            logger.warning("警告：请设置OPENAI_API_KEY环境变量或提供API密钥")
+            os.environ["GOOGLE_API_KEY"] = api_key
+        elif not os.getenv("GOOGLE_API_KEY"):
+            logger.warning("警告：请设置GOOGLE_API_KEY环境变量或提供API密钥")
         
         # 初始化组件
         self.data_loader = WikiSQLDataLoader(data_dir, local_wikisql_path)
         self.db_manager = WikiSQLDatabaseManager()
         
-        # 初始化LLM (使用OpenAI兼容接口)
-        from langchain_openai import ChatOpenAI
+        # 初始化LLM (使用Google AI Studio)
+        from langchain_google_genai import ChatGoogleGenerativeAI
         
-        base_url = "https://okjtgbhgemzb.eu-central-1.clawcloudrun.com"
-        self.llm = ChatOpenAI(
-            model="gemini-2.5-flash",
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-exp",
             temperature=0,
-            base_url=f"{base_url}/v1",
-            request_timeout=30,
-            verbose=True
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            request_timeout=30
         )
         
         # 数据存储
@@ -567,9 +564,9 @@ def main():
     print("=== WikiSQL直接LLM查询助手测试 ===")
     
     # 获取API密钥
-    api_key = input("请输入你的API密钥 (用于Gemini 2.5 Flash，或按Enter跳过): ").strip()
+    api_key = input("请输入你的Google AI Studio API密钥 (或按Enter跳过): ").strip()
     if not api_key:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             print("❌ 需要提供API密钥")
             return
